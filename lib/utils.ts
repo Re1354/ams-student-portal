@@ -5,8 +5,11 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-// API Base URL
-const API_BASE_URL = 'https://api.tatomal.me/api';
+// API Base URL (configurable via NEXT_PUBLIC_API_URL for Render/Vercel deployments)
+const rawApiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://api.tatomal.me/api';
+const API_BASE_URL = rawApiUrl.endsWith('/api')
+  ? rawApiUrl
+  : `${rawApiUrl.replace(/\/+$/, '')}/api`;
 
 // Offset between the server (VPS) clock and this device's clock, in ms.
 // Kept in sync by api.syncServerTime() so every countdown is anchored to the
