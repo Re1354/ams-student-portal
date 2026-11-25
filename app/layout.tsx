@@ -2,6 +2,7 @@ import type React from "react"
 import type { Metadata, Viewport } from "next"
 import { Inter } from "next/font/google"
 import { DisableContextMenu } from "@/components/disable-context-menu"
+import { ProctoringShell } from "@/components/proctoring-shell"
 import "katex/dist/katex.min.css"
 import "./globals.css"
 
@@ -28,6 +29,7 @@ export default function RootLayout({
       <body className={`${inter.className} overflow-x-hidden`}>
         <DisableContextMenu />
         {children}
+        <ProctoringShell />
       </body>
     </html>
   )

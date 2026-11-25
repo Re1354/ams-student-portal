@@ -7,7 +7,7 @@ export function cn(...inputs: ClassValue[]) {
 
 // API Base URL (configurable via NEXT_PUBLIC_API_URL for Render/Vercel deployments)
 const rawApiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://api.tatomal.me/api';
-const API_BASE_URL = rawApiUrl.endsWith('/api')
+export const API_BASE_URL = rawApiUrl.endsWith('/api')
   ? rawApiUrl
   : `${rawApiUrl.replace(/\/+$/, '')}/api`;
 
