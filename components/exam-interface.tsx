@@ -225,7 +225,8 @@ export default function ExamInterface() {
   const [headerH, setHeaderH] = useState(0);
   const router = useRouter();
 
-  // Optional webcam proctoring; inactive unless NEXT_PUBLIC_PROCTORING_URL is set.
+  // Exam proctoring (camera and full-screen checks). On by default; NEXT_PUBLIC_PROCTORING=off
+  // turns it off, and it stays off on its own when the backend has no proctoring endpoints.
   const proctoring = useProctoring({
     studentId: studentData?.studentId,
     examId: examData?.exam_id,
