@@ -21,6 +21,7 @@ import { MathText } from '@/components/math-text';
 import { ArrowUp, ListChecks, X } from 'lucide-react';
 import Image from 'next/image';
 import { api, serverNow } from '@/lib/utils';
+import { useProctoring } from '@/components/use-proctoring';
 
 type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
 
@@ -223,6 +224,19 @@ export default function ExamInterface() {
   const [headerEl, setHeaderEl] = useState<HTMLDivElement | null>(null);
   const [headerH, setHeaderH] = useState(0);
   const router = useRouter();
+
+  // Exam proctoring (camera and full-screen checks). On by default; NEXT_PUBLIC_PROCTORING=off
+  // turns it off, and it stays off on its own when the backend has no proctoring endpoints.
+  const proctoring = useProctoring({
+    studentId: studentData?.studentId,
+    examId: examData?.exam_id,
+    username: studentData?.username,
+    fullName: studentData?.fullName,
+    submittedKey:
+      studentData && examData
+        ? getExamSubmittedKey(studentData.studentId, examData.exam_id)
+        : undefined,
+  });
 
   // Per-question debounce timers for autosaving text answers.
   const textSaveTimers = useRef<Record<number, ReturnType<typeof setTimeout>>>(
@@ -545,6 +559,7 @@ export default function ExamInterface() {
   };
 
   const handleLogout = () => {
+    proctoring.leftExam();
     localStorage.removeItem('studentData');
     localStorage.removeItem('examSchedule');
     localStorage.removeItem('selectedExamId');
