@@ -35,6 +35,8 @@ type AMSProctor = {
   stop: (opts: { end: boolean; reason?: 'LEFT_EXAM' }) => Promise<void>;
   shutdown: () => Promise<void>;
   unlocked: () => { fullscreen: boolean; camera: boolean };
+  /** Support staff code: take the exam without camera (the camera is never opened). */
+  unlockCamera?: (opts: { apiBase: string; studentId: number; code: string }) => Promise<{ ok: boolean; message: string }>;
 };
 
 declare global {
@@ -84,8 +86,7 @@ export function readConsent(studentId: number): string | null {
   }
 }
 
-export function saveConsent(studentId: number): string {
-  const at = new Date().toISOString();
+export function saveConsent(studentId: number, at: string = new Date().toISOString()): string {
   try {
     safeSession()?.setItem(CONSENT_KEY, JSON.stringify({ studentId, at }));
   } catch {
