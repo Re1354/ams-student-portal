@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import { Camera, CameraOff } from 'lucide-react';
+import { Info } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -28,24 +28,58 @@ function loggedInStudentId(): number | null {
 }
 
 /**
- * On every page after login: asks for consent once per login, then keeps the
+ * The rules the candidate confirms before the exam (supervisor review 1).
+ * Each one matches something the proctoring checks; the last is the declaration.
+ */
+export const AGREEMENT_RULES: ReadonlyArray<{ label: string; text: string }> = [
+  {
+    label: 'Examination window',
+    text: 'I will remain on the examination page in full-screen mode. I will not switch tabs, open other windows or use other applications.',
+  },
+  {
+    label: 'Camera presence',
+    text: 'I will keep my face clearly visible to the camera throughout the examination.',
+  },
+  {
+    label: 'Attention',
+    text: 'I will keep my attention on my screen and my answer paper. I will not look to the left, to the right or upward.',
+  },
+  {
+    label: 'Independent work',
+    text: "I will not view another candidate's screen or paper, and no other person will be present within the camera's view.",
+  },
+  {
+    label: 'Electronic devices',
+    text: 'I will not use a mobile phone, an additional computer or any other electronic device.',
+  },
+  {
+    label: 'Permitted materials',
+    text: 'I will not use books, notes or any printed material. Only pen and paper are permitted.',
+  },
+  {
+    label: 'Camera',
+    text: 'I will keep my camera switched on and will not cover, block or disconnect it.',
+  },
+  {
+    label: 'Declaration',
+    text: 'I have read and understood these rules. I agree to abide by them and accept the examination terms and conditions.',
+  },
+];
+
+/**
+ * On every page after login: asks for the agreement once per login, then keeps the
  * camera preview and the full-screen lock on (the watcher's preview mode).
+ * If the camera cannot start, the portal works as normal and the report records it.
  * On the login page it switches everything off (logout).
  */
 export function ProctoringShell() {
   const pathname = usePathname();
   const router = useRouter();
   const [consentFor, setConsentFor] = useState<number | null>(null);
-  // "Take the exam without camera": support staff enter the support unlock code here.
-  const [noCamera, setNoCamera] = useState(false);
-  const [code, setCode] = useState('');
-  const [message, setMessage] = useState('');
-  const [checking, setChecking] = useState(false);
+  const [ticked, setTicked] = useState<boolean[]>(() => AGREEMENT_RULES.map(() => false));
 
   useEffect(() => {
-    setNoCamera(false);
-    setCode('');
-    setMessage('');
+    setTicked(AGREEMENT_RULES.map(() => false));
   }, [consentFor]);
 
   useEffect(() => {
@@ -80,7 +114,10 @@ export function ProctoringShell() {
 
   if (consentFor === null) return null;
 
+  const allTicked = ticked.every(Boolean);
+
   const agree = () => {
+    if (!allTicked) return;
     const studentId = consentFor;
     saveConsent(studentId);
     setConsentFor(null);
@@ -92,33 +129,8 @@ export function ProctoringShell() {
     });
   };
 
-  const continueWithoutCamera = async (event: FormEvent) => {
-    event.preventDefault();
-    const studentId = consentFor;
-    if (!code.trim() || checking) return;
-    setChecking(true);
-    setMessage('');
-    try {
-      const at = new Date().toISOString();
-      const proctor = await loadWatcher();
-      if (!proctor.unlockCamera) {
-        setMessage('Please reload the page and try again.');
-        return;
-      }
-      const result = await proctor.unlockCamera({ apiBase: PROCTORING_API_BASE, studentId, code: code.trim() });
-      if (!result.ok) {
-        setMessage(result.message);
-        return;
-      }
-      saveConsent(studentId, at);
-      setConsentFor(null);
-      // The camera stays off; the full-screen lock still applies.
-      void proctor.preview({ apiBase: PROCTORING_API_BASE, assetBase: PROCTORING_ASSET_BASE, studentId });
-    } catch {
-      setMessage('Could not check the code. Check the connection and try again.');
-    } finally {
-      setChecking(false);
-    }
+  const toggle = (index: number) => {
+    setTicked((current) => current.map((value, i) => (i === index ? !value : value)));
   };
 
   const logOut = () => {
@@ -137,86 +149,63 @@ export function ProctoringShell() {
       aria-modal="true"
       aria-labelledby="proctoring-consent-title"
     >
-      <div className="w-full max-w-lg rounded-xl bg-white p-6 text-gray-900 shadow-2xl">
-        <div className="mb-3 flex items-center gap-3">
-          <div className="rounded-full bg-blue-100 p-2 text-blue-700">
-            {noCamera ? <CameraOff className="h-5 w-5" /> : <Camera className="h-5 w-5" />}
+      <div className="flex max-h-[calc(100vh-2rem)] w-full max-w-2xl flex-col rounded-xl bg-white text-gray-900 shadow-2xl">
+        <div className="border-b border-gray-200 px-6 pb-4 pt-6 text-center">
+          <div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-full bg-blue-100 text-blue-700">
+            <Info className="h-6 w-6" aria-hidden="true" />
           </div>
           <h2 id="proctoring-consent-title" className="text-xl font-semibold">
-            {noCamera ? 'Take the exam without camera' : 'Exam proctoring'}
+            Proctored Examination Agreement
           </h2>
+          <p className="mt-1 text-sm text-gray-600">
+            Please read and confirm each statement below before you begin your examination.
+          </p>
         </div>
-        {noCamera ? (
-          <form onSubmit={continueWithoutCamera}>
-            <p className="mb-3 text-sm text-gray-700">
-              Support staff: enter the support unlock code. The camera stays off until you log out.
-            </p>
-            <ul className="mb-4 list-disc space-y-1 pl-5 text-sm text-gray-700">
-              <li>The exam controller will see that you took the exam without camera.</li>
-              <li>Leaving the exam window or leaving full screen is still recorded.</li>
-              <li>This portal stays in full screen until you log out.</li>
-            </ul>
-            <label htmlFor="proctoring-no-camera-code" className="mb-1 block text-sm font-medium text-gray-800">
-              Support unlock code
-            </label>
-            <input
-              id="proctoring-no-camera-code"
-              type="password"
-              autoComplete="off"
-              autoFocus
-              value={code}
-              onChange={(event) => setCode(event.target.value)}
-              className="mb-2 w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-600 focus:outline-none focus:ring-1 focus:ring-blue-600"
-            />
-            <p className="mb-3 min-h-[1.25rem] text-sm text-red-700" role="alert">
-              {message}
-            </p>
-            <div className="flex flex-wrap items-center gap-3">
-              <Button
-                type="submit"
-                disabled={!code.trim() || checking}
-                className="bg-blue-700 hover:bg-blue-800 text-white"
-              >
-                {checking ? 'Checking...' : 'Continue without camera'}
-              </Button>
-              <Button type="button" variant="ghost" onClick={() => setNoCamera(false)} className="text-gray-600">
-                Back
-              </Button>
-            </div>
-          </form>
-        ) : (
-          <>
-            <p className="mb-3 text-sm text-gray-700">
-              Your written exam is proctored. Before you continue, please read what is checked.
-            </p>
-            <ul className="mb-4 list-disc space-y-1 pl-5 text-sm text-gray-700">
-              <li>Your camera is on while you are logged in. A small preview shows at the bottom right.</li>
-              <li>
-                During the exam, a photo is saved only when a rule is broken, for example another person or a
-                phone in view.
+        <ul className="flex-1 space-y-2 overflow-y-auto px-6 py-4">
+          {AGREEMENT_RULES.map((rule, index) => {
+            const id = `proctoring-rule-${index}`;
+            return (
+              <li key={rule.label}>
+                <label
+                  htmlFor={id}
+                  className={`flex cursor-pointer gap-3 rounded-lg border p-3 transition-colors ${
+                    ticked[index] ? 'border-blue-300 bg-blue-50' : 'border-gray-200 hover:bg-gray-50'
+                  }`}
+                >
+                  <input
+                    id={id}
+                    type="checkbox"
+                    checked={ticked[index]}
+                    onChange={() => toggle(index)}
+                    className="mt-0.5 h-4 w-4 shrink-0 accent-blue-700"
+                  />
+                  <span className="text-sm">
+                    <span className="block font-semibold text-gray-900">{rule.label}</span>
+                    <span className="block text-gray-700">{rule.text}</span>
+                  </span>
+                </label>
               </li>
-              <li>Leaving the exam window or leaving full screen is recorded.</li>
-              <li>Only the exam controller sees these records.</li>
-              <li>This portal stays in full screen until you log out.</li>
-            </ul>
-            <div className="flex flex-wrap items-center gap-3">
-              <Button type="button" onClick={agree} className="bg-blue-700 hover:bg-blue-800 text-white">
-                I agree, start camera
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setNoCamera(true)}
-                className="border-gray-300 bg-white text-gray-800 hover:bg-gray-50"
-              >
-                Take the exam without camera
-              </Button>
-              <Button type="button" variant="ghost" onClick={logOut} className="text-gray-600">
-                Log out
-              </Button>
-            </div>
-          </>
-        )}
+            );
+          })}
+        </ul>
+        <div className="border-t border-gray-200 px-6 pb-6 pt-4 text-center">
+          <p className="mb-3 text-xs text-gray-600">
+            Any breach of these rules may result in your examination being reported.
+          </p>
+          <Button
+            type="button"
+            onClick={agree}
+            disabled={!allTicked}
+            className="w-full bg-blue-700 text-white hover:bg-blue-800 sm:w-auto sm:px-8"
+          >
+            I understand and agree
+          </Button>
+          <div className="mt-2">
+            <Button type="button" variant="ghost" onClick={logOut} className="text-gray-600">
+              Log out
+            </Button>
+          </div>
+        </div>
       </div>
     </div>
   );
